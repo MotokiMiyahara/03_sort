@@ -1,0 +1,294 @@
+※これは解答用テキストファイルです。
+
+■解答を記入してください。
+input_case_1.txt
+input_case_2.txt
+input_case_3.txt
+input_case_4.txt
+input_case_5.txt
+の、5つの入力に対する出力結果を記入してください（各ケースごとに改行してください）。
+4..10
+66..67
+215..892
+2..1000
+0
+
+
+■使用言語・動作環境について
+(1)言語の種類を記入してください。未記入の場合、減点となります。
+Ruby
+
+
+(2)コンパイラ／インタプリタの名称・バージョン情報を記入してください。未記入の場合、減点となります。
+ruby 2.1.0p0 (2013-12-25 revision 44422) [i686-linux]
+
+
+■プログラムの特長・工夫した点等、アピールポイントについて。
+あなたが書いたコードの内容や工夫した点をわかりやすく説明してください。未記入の場合、減点となります。
+  
+  1.問題の解釈について
+    問題ではソート範囲が複数になる場合について言及がなかったため、常に単一の範囲を返すようにしています
+      (例)
+        [1, 3, 2, 4, 6, 5, 7] => [2..3, 5..6] or 2..6 (後者を採用)
+  
+  2.アルゴリズムについて
+    ・配列Aのi番目の要素をソートする必要がない場合、A[i]がA[i .. -1]の要素のうちで最小になっていることを利用しています。
+    ・O(n)で動作するように調整した分、可読性が犠牲になっています。
+    
+    ・実行速度の比較用として、数列全体を実際にソートして、ソート前の配列と比較する実装も用意してあります。
+    
+    
+  3.実行速度について
+    ・参考としてランダムな100万件のデータを読み込んだ時の所要時間を記載します。
+        ファイルの読み込み:                      4.4秒
+        ソート範囲の計算（ソートなし):           2.6秒
+        ソート範囲の計算（実際にソートする方式): 5.9秒
+      
+  4.Refinementsについて
+    　勉強のためにRefinements機能を使用していますが、
+    混乱を招きやすいため、
+    実務で導入する場合は、開発チーム内での相談が必要だと思います。
+
+
+■もし企業からのスカウトメールがきたらどのくらい積極的にアクションすると思いますか？任意でお答えください。
+「積極的に会ってみたいと思う」「社名や条件次第では会ってみたいと思う」「よほどのことがない限り返信しない」、他ありましたら記入してください。
+
+積極的に会ってみたいと思うのですが、
+現在多忙のため、お返事が遅れてしまうかも知れません。
+
+
+■あなたが書いたコードを貼り付けてください。未記入の場合、減点となります。
+#!/usr/bin/env ruby
+# vim:set fileencoding=utf-8 ts=2 sw=2 sts=2 et:
+
+# 使い方:
+#   ./sort_range.rb {filename}
+#     {filename}から整数列データを読み込み、ソートの行われていない範囲を出力します
+#     なお、{filename}を省略した場合は、標準入力からデータを読み込みます
+#
+# 使用例:
+#   ./sort_range.rb data/input_case_1.txt
+#
+# 速度テスト:
+#   ./sort_range.rb --test {filename}
+#    速度テストを行い、結果を出力します 
+
+# 注意点
+#   このプログラムはUTF-8で記述したものをShift-JISに変換しています。(解答フォーマットに合わせるため)
+#   プログラムを実行する前にUTF-8に再変換して下さい。
+
+require 'optparse'
+
+module SortRange
+  refine Array do
+    public
+    # unsorted_rangeの遅い実装
+    def slowly_unsorted_range
+      sorted_list = sort
+      list_pair = zip(sorted_list).each_with_index
+      (_, _), first_index = list_pair             .find{|(num, sorted_num), index| num != sorted_num}
+      (_, _), last_index  = list_pair.reverse_each.find{|(num, sorted_num), index| num != sorted_num}
+      return (first_index && last_index) ? (first_index .. last_index) : nil
+    end
+  end
+
+  refine Array do
+    public
+    # この配列の未ソートの範囲を返します
+    # @return [Range] 未ソートの範囲
+    # @return [nil] この配列がソート済みの場合
+    # @example
+    #   [1, 3, 4, 7, 11, 6, 8, 9, 7, 10, 13, 14].unsorted_range # => (3..9)
+    #   [1, 2, 3].unsorted_range # => nil
+    def unsorted_range
+      # 要素1以下ならソート済みであることは自明
+      return nil if size <= 1
+
+      first_index = calc_first_index
+      return nil unless first_index
+
+      last_index = calc_last_index
+      raise unless last_index
+
+      return (first_index .. last_index) 
+    end
+
+    private
+    # @note アルゴリズムについて
+    #   下記のように定義する
+    #     未ソート部分の先頭のインデックス:        first
+    #     インデックスxの要素の値: value(x)
+    #     末尾からインデックスxまでの要素の最小値: min_value(x)
+    #   このとき、firstはvalue(x) != min_value(x) となるもののうち最小のものである
+    def calc_first_index
+      raise if size <= 1
+
+      min_value = at(size - 1)
+      result = nil
+      (size - 2).downto(0) do |i|
+        current_value = at(i)
+        min_value = Helper::min_of(min_value, current_value)
+        result = i if current_value != min_value
+      end
+      return result
+    end
+
+    public
+
+    # @note アルゴリズムはcalc_first_rangeの逆
+    def calc_last_index
+      raise if size <= 1
+
+      max_value = at(0)
+      result = nil
+      1.upto(size - 1) do |i|
+        current_value = at(i)
+        max_value = Helper::max_of(max_value, current_value)
+        result = i if current_value != max_value
+      end
+      return result
+    end
+  end
+
+  # usingする側から呼び出されたくないメソッド群を定義
+  class Helper
+    class << self
+      # @note Array#minよりも高速な実装
+      def min_of(a, b)
+        return a < b ? a : b
+      end
+
+      # @note Array#maxよりも高速な実装
+      def max_of(a, b)
+        return a > b ? a : b
+      end
+    end
+  end
+end
+
+
+# includeすることで、速度計測用メソッドtlogが追加される
+module TimeLogger
+  class << self
+    def instance
+      return Thread.current[:"Mtk:Util::TimeLogger::KEY_INSANCE"] ||= Logger.new
+    end
+    def log(*args)
+      instance.log(*args)
+    end
+
+    class Logger
+      def initialize
+        @previous_time = Time.now
+      end
+      def log(text = '')
+        current_time = Time.now
+        sec = current_time - @previous_time
+        puts "#{text}: #{format(sec)}"
+        @previous_time = current_time
+      end
+      def format(total_sec)
+        v = total_sec
+        v, sec = v.divmod(60)
+        hour, min = v.divmod(60)
+
+        return "%f sec  (%d:%02d:%02d)" % [total_sec, hour, min, sec]
+
+      end
+    end
+  end
+  
+  # time-log
+  def tlog(*args)
+    TimeLogger.log(*args)
+  end
+end
+
+# 標準入出力とのやりとりを定義
+module Interaction
+  class << self
+    using SortRange
+    include TimeLogger
+
+    public
+    def main
+      opts = {}
+      parser = OptionParser.new
+      parser.on('--test', 'run test-mode'){|v| opts[:do_test] = true}
+      parser.parse!(ARGV)
+
+      if opts[:do_test]
+        run_test
+      else
+        run_normal
+      end
+    end
+
+
+    private
+    # テストモードでの実行
+    def run_test
+      puts '[speed test] -----------------------'
+      tlog('run program       ')
+
+      list = read_list(ARGF)
+      tlog('load file         ')
+
+      range = list.unsorted_range
+      tlog('calc by faster way')
+
+      range2 = list.slowly_unsorted_range
+      tlog('calc by slower way')
+
+      puts
+      puts '[result test] -----------------------'
+      puts "faster: #{description_for_range(range)}"
+      puts "slower: #{description_for_range(range2)}"
+      puts (range == range2 ? 'OK' : '**NG**')
+    end
+
+    # 通常の実行
+    def run_normal
+      list = read_list(ARGF)
+      write_answer(list.unsorted_range)
+    end
+
+    # 改行区切りの整数データを整数の配列にして返します
+    # @param [IO] io 
+    # @return [Arran<Integer>]
+    # @raise [RuntimeError] 入力データが不正なとき
+    def read_list(io)
+      lines = io.readlines.map(&:chomp).reject(&:empty?)
+      if lines.any?{|line| line !~ /^\d+$/}
+        raise RuntimeError, 'This program accept only decimal numbers.'
+      end
+      list = lines.map(&:to_i).freeze
+    end
+
+    # ソート範囲を解答の形式に整形して出力します
+    # @param [Range] range ソート範囲
+    # @return [void]
+    # @example
+    #   write_answer(0..9) # "1..10" を出力
+    #   write_answer(nil)  # "0"     を出力
+    def write_answer(range)
+      puts description_for_range(range)
+    end
+
+    def description_for_range(range)
+      if range
+        # Range#first および Range.last は<0から始まる数>で定義されているため、
+        # 解答用の表現である<1から始まる数>に変換して出力する
+        return "#{range.first + 1}..#{range.last + 1}"
+      else
+        return '0'
+      end
+    end
+
+  end
+end
+
+if $0 == __FILE__
+  Interaction::main
+end
+
